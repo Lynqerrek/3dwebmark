@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebMark ULTRA EXTREME - Real-Time Raytracing Sim</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@300;500&display=swap');
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Orbitron', sans-serif;
+            color: #fff;
+            user-select: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Scanline Overlay */
+        #scanlines {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        /* UI Overlay Layer */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);
+            padding: 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(255, 50, 50, 0.1);
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000;
+            font-style: italic;
+        }
+        
+        .logo span { color: #fff; }
+
+        .metrics {
+            text-align: right;
+            font-family: 'Roboto Mono', monospace;
+            font-size: 16px;
+            color: #ff3333;
+            text-shadow: 0 0 8px rgba(255, 0, 0, 0.6);
+            background: rgba(0,0,0,0.5);
+            padding: 10px;
+            border: 1px solid #ff0000;
+        }
+
+        .metric-row { margin-bottom: 5px; display: flex; justify-content: space-between; width: 200px; }
+        .metric-label { color: #aaa; }
+        .metric-val { font-weight: bold; color: #fff; }
+
+        /* Bottom Bar */
+        .bottom-bar {
+            background: linear-gradient(0deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%);
+            padding: 30px;
+            text-align: center;
+            pointer-events: auto;
+        }
+
+        .tech-readout {
+            font-size: 10px; 
+            color: #666; 
+            text-transform: uppercase; 
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        
+        .tech-item { border: 1px solid #333; padding: 5px 10px; }
+        .tech-active { color: #ff0000; border-color: #ff0000; box-shadow: 0 0 5px #ff0000; }
+
+        /* Main Menu / Start Screen */
+        #start-screen, #result-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 5, 5, 0.9);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            transition: opacity 0.5s ease;
+        }
+
+        .hidden {
+            opacity: 0;
+            pointer-events: none !important;
+        }
+
+        h1 {
+            font-size: 72px;
+            margin: 0 0 20px 0;
+            text-transform: uppercase;
+            background: -webkit-linear-gradient(#fff, #ff0000);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-style: italic;
+            text-shadow: 0 0 30px rgba(255,0,0,0.2);
+        }
+
+        p {
+            font-family: 'Roboto Mono', monospace;
+            color: #aaa;
+            max-width: 700px;
+            text-align: center;
+            line-height: 1.6;
+            margin-bottom: 50px;
+            font-size: 14px;
+        }
+        
+        .warning-box {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff0000;
+            padding: 15px;
+            margin-top: 20px;
+            color: #ff5555;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn {
+            background: rgba(0,0,0,0.5);
+            color: #ff0000;
+            border: 2px solid #ff0000;
+            padding: 20px 60px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 900;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            transition: all 0.2s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 15px rgba(255, 0, 0, 0.2);
+        }
+
+        .btn:hover {
+            background: #ff0000;
+            color: #000;
+            box-shadow: 0 0 50px #ff0000;
+            transform: scale(1.05);
+        }
+
+        .btn:disabled {
+            border-color: #444;
+            color: #444;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* Loading Bar */
+        #loader {
+            width: 400px;
+            height: 6px;
+            background: #111;
+            margin-top: 30px;
+            position: relative;
+            display: none;
+            border: 1px solid #333;
+        }
+        
+        #loader-bar {
+            width: 0%;
+            height: 100%;
+            background: #ff0000;
+            box-shadow: 0 0 15px #ff0000;
+            transition: width 0.1s linear;
+        }
+
+        /* Result Specifics */
+        .score-huge {
+            font-size: 140px;
+            font-weight: 900;
+            color: #fff;
+            text-shadow: 0 0 40px #ff0000;
+            margin: 10px 0;
+            font-style: italic;
+        }
+        
+        .score-label {
+            font-size: 24px;
+            letter-spacing: 8px;
+            color: #ff0000;
+            opacity: 1;
+            font-weight: bold;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 20px;
+            margin-top: 40px;
+            background: rgba(20, 0, 0, 0.6);
+            padding: 30px;
+            border: 1px solid #550000;
+            width: 80%;
+            max-width: 1000px;
+        }
+
+        .detail-item { text-align: center; border-right: 1px solid #330000; }
+        .detail-item:last-child { border-right: none; }
+        .detail-val { font-size: 32px; color: #fff; font-weight: bold; }
+        .detail-lbl { font-size: 12px; color: #ff5555; font-family: 'Roboto Mono', monospace; margin-top: 5px; }
+
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="scanlines"></div>
+
+    <div id="ui-layer">
+        <div class="top-bar">
+            <div class="logo">WEB<span>MARK</span> ULTRA</div>
+            <div class="metrics" id="live-metrics" style="opacity: 0;">
+                <div class="metric-row"><span class="metric-label">FPS</span><span class="metric-val" id="fps-val">0</span></div>
+                <div class="metric-row"><span class="metric-label">TIME</span><span class="metric-val" id="time-val">0.00s</span></div>
+                <div class="metric-row"><span class="metric-label">DRAWCALLS</span><span class="metric-val">>9000</span></div>
+            </div>
+        </div>
+        <div class="bottom-bar">
+            <div class="tech-readout">
+                <div class="tech-item tech-active">Dynamic CubeMap GI</div>
+                <div class="tech-item tech-active">Volumetric Fog</div>
+                <div class="tech-item tech-active">4K Shadow Maps</div>
+                <div class="tech-item tech-active">8x Shadow Lights</div>
+                <div class="tech-item tech-active">SSR Sim</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen">
+        <h1>ULTRA EXTREME</h1>
+        <p>
+            You have selected the ULTRA profile. This is a torture test for modern GPUs.
+            <br><br>
+            <strong>The "Reflect Everything" Engine:</strong>
+            <br>
+            We generate a real-time dynamic environment map every single frame. This means the 40,000 asteroids reflect the core, the particles, the lights, and the dynamic environment in real-time.
+            <br><br>
+            40,000 Instanced Physical Meshes | 4096px Shadows | 8 Dynamic Lights
+        </p>
+        <div class="warning-box">WARNING: EPILEPSY WARNING (FLASHING LIGHTS). EXPECT LOW FPS.</div>
+        <br>
+        <button id="init-btn" class="btn">IGNITE ENGINE</button>
+        <div id="loader"><div id="loader-bar"></div></div>
+        <div id="status-text" style="margin-top: 15px; font-size: 12px; color: #666; font-family: 'Roboto Mono';"></div>
+    </div>
+
+    <!-- Result Screen -->
+    <div id="result-screen" class="hidden">
+        <div class="score-label">ULTRA SCORE</div>
+        <div class="score-huge" id="final-score">0</div>
+        
+        <div class="detail-grid">
+            <div class="detail-item">
+                <div class="detail-val" id="avg-fps">0</div>
+                <div class="detail-lbl">AVG FPS</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-val" id="min-fps">0</div>
+                <div class="detail-lbl">1% LOW</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-val" id="total-frames">0</div>
+                <div class="detail-lbl">FRAMES RENDERED</div>
+            </div>
+            <div class="detail-item">
+                <div class="detail-val" id="tri-count">4.2M</div>
+                <div class="detail-lbl">TRIANGLES/FRAME</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; color: #888; font-family: 'Roboto Mono'; font-size: 12px;" id="gpu-name"></div>
+
+        <button id="restart-btn" class="btn" style="margin-top: 40px;">RE-BENCH</button>
+    </div>
+
+    <!-- Import Maps -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <!-- Import Three.js via module -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+        import { FilmPass } from 'three/addons/postprocessing/FilmPass.js';
+
+        // --- Configuration ---
+        const DURATION = 20.0;
+        const ASTEROID_COUNT = 40000; // Extreme Count
+        const PARTICLE_COUNT = 8000;  
+        const LIGHT_COUNT = 8;
+        
+        // --- Globals ---
+        let camera, scene, renderer, composer;
+        let cubeCamera, cubeRenderTarget;
+        let isRunning = false;
+        let startTime = 0;
+        let frameCount = 0;
+        let rafId;
+        
+        let stats = {
+            totalFrames: 0,
+            fpsHistory: [],
+            minFps: 9999,
+            maxFps: 0,
+            startTime: 0,
+            endTime: 0,
+            lastFrameTime: 0
+        };
+
+        const elFps = document.getElementById('fps-val');
+        const elTime = document.getElementById('time-val');
+        const elLiveMetrics = document.getElementById('live-metrics');
+        const elStartScreen = document.getElementById('start-screen');
+        const elResultScreen = document.getElementById('result-screen');
+        const elInitBtn = document.getElementById('init-btn');
+        const elLoader = document.getElementById('loader');
+        const elLoaderBar = document.getElementById('loader-bar');
+        const elStatus = document.getElementById('status-text');
+
+        // Scene Objects
+        let coreMesh, asteroidsMesh, starSystem, nebulaSystem;
+        let cameraCurve;
+        let lightGroup;
+
+        // --- Initialization ---
+        
+        elInitBtn.addEventListener('click', async () => {
+            elInitBtn.disabled = true;
+            elLoader.style.display = 'block';
+            elStatus.textContent = "Allocating 4K Shadow Maps & Dynamic Reflection Probes...";
+            
+            setTimeout(() => {
+                initEngine();
+                
+                let progress = 0;
+                const loadInt = setInterval(() => {
+                    progress += 1; // Slow load to build tension
+                    elLoaderBar.style.width = progress + '%';
+                    if (progress >= 100) {
+                        clearInterval(loadInt);
+                        elInitBtn.innerText = "START BENCHMARK";
+                        elInitBtn.disabled = false;
+                        elInitBtn.onclick = startBenchmark;
+                        elStatus.textContent = "SYSTEM OVERCLOCKED. READY.";
+                        elInitBtn.style.background = "#ff0000";
+                        elInitBtn.style.color = "#000";
+                    }
+                }, 20);
+            }, 100);
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            elResultScreen.classList.add('hidden');
+            elStartScreen.classList.remove('hidden');
+            elInitBtn.innerText = "START BENCHMARK";
+            elInitBtn.onclick = startBenchmark;
+            elLoader.style.display = 'none';
+            elStatus.textContent = "Ready.";
+            elInitBtn.style.background = "rgba(0,0,0,0.5)";
+            elInitBtn.style.color = "#ff0000";
+        });
+
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050000, 0.002); // Red tinted fog
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 3000);
+            
+            // Renderer Setup - Enable Shadows
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: false, 
+                powerPreference: "high-performance",
+                stencil: false,
+                depth: true,
+                logarithmicDepthBuffer: true // Prevent z-fighting with so many objects
+            });
+            renderer.setPixelRatio(window.devicePixelRatio); // Full resolution
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.2;
+            
+            // Shadows - Ultra Quality
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            container.appendChild(renderer.domElement);
+
+            // --- The "Reflect Everything" Tech ---
+            // Create a CubeCamera that will render the environment for reflections
+            // 512 resolution is actually quite high for a real-time dynamic cubemap
+            cubeRenderTarget = new THREE.WebGLCubeRenderTarget(512);
+            cubeRenderTarget.texture.type = THREE.HalfFloatType;
+            cubeCamera = new THREE.CubeCamera(1, 2000, cubeRenderTarget);
+            scene.add(cubeCamera);
+
+            // Post Processing
+            const renderScene = new RenderPass(scene, camera);
+            
+            // Strong Bloom
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0;
+            bloomPass.strength = 1.8;
+            bloomPass.radius = 0.5;
+
+            // Film Grain for cinematic feel
+            const filmPass = new FilmPass(
+                0.35,   // noise intensity
+                0.025,  // scanline intensity
+                648,    // scanline count
+                false   // grayscale
+            );
+
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            composer.addPass(filmPass);
+
+            generateSceneContent();
+            createCameraPath();
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function generateSceneContent() {
+            // 1. Lighting (Extreme Count)
+            
+            // Main Sun (4K Shadows)
+            const dirLight = new THREE.DirectionalLight(0xff5500, 4);
+            dirLight.position.set(150, 200, 100);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 4096; 
+            dirLight.shadow.mapSize.height = 4096;
+            dirLight.shadow.camera.near = 0.5;
+            dirLight.shadow.camera.far = 1000;
+            dirLight.shadow.bias = -0.0001;
+            scene.add(dirLight);
+
+            // 8 Orbiting Lights
+            lightGroup = new THREE.Group();
+            scene.add(lightGroup);
+
+            for(let i=0; i<LIGHT_COUNT; i++) {
+                const hue = (i / LIGHT_COUNT);
+                const color = new THREE.Color().setHSL(hue, 1.0, 0.5);
+                
+                const light = new THREE.PointLight(color, 8, 300);
+                light.castShadow = true; 
+                light.shadow.mapSize.width = 512;
+                light.shadow.mapSize.height = 512;
+                
+                // Visible Orb
+                const sphere = new THREE.Mesh(
+                    new THREE.SphereGeometry(2), 
+                    new THREE.MeshBasicMaterial({color: color, toneMapped: false})
+                );
+                // Make orb bright for bloom
+                sphere.material.color.multiplyScalar(10); 
+                light.add(sphere);
+                
+                light.position.set(
+                    Math.cos(i * (Math.PI*2)/LIGHT_COUNT)*80, 
+                    (Math.random()-0.5)*50, 
+                    Math.sin(i * (Math.PI*2)/LIGHT_COUNT)*80
+                );
+                lightGroup.add(light);
+            }
+
+            // 2. The Core
+            const coreGeo = new THREE.IcosahedronGeometry(15, 1); 
+            const coreMat = new THREE.MeshPhysicalMaterial({ 
+                color: 0x111111, 
+                emissive: 0xff0000, 
+                emissiveIntensity: 10, // Blinding core
+                roughness: 0.1,
+                metalness: 0.9,
+                clearcoat: 1.0,
+                wireframe: true
+            });
+            coreMesh = new THREE.Mesh(coreGeo, coreMat);
+            coreMesh.castShadow = true;
+            coreMesh.receiveShadow = true;
+            scene.add(coreMesh);
+            
+            // Solid center for core
+            const innerCore = new THREE.Mesh(
+                new THREE.IcosahedronGeometry(10, 2),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0, metalness: 1 })
+            );
+            coreMesh.add(innerCore);
+
+            // 3. Asteroid Field (The Mirror Army)
+            const asteroidGeo = new THREE.TetrahedronGeometry(1.5, 1); // Sharper shards
+            
+            // PHYSICAL Material with ENV MAP
+            const asteroidMat = new THREE.MeshPhysicalMaterial({
+                color: 0x888888,
+                roughness: 0.05, // Almost perfect mirror
+                metalness: 1.0,  // Full metal
+                envMap: cubeRenderTarget.texture, // DYNAMIC REFLECTION
+                envMapIntensity: 1.5,
+                flatShading: true
+            });
+
+            asteroidsMesh = new THREE.InstancedMesh(asteroidGeo, asteroidMat, ASTEROID_COUNT);
+            asteroidsMesh.castShadow = true; 
+            asteroidsMesh.receiveShadow = true; 
+            asteroidsMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage); // We might move them?
+            
+            const dummy = new THREE.Object3D();
+            for (let i = 0; i < ASTEROID_COUNT; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                // Torus distribution
+                const distance = 80 + Math.random() * 350;
+                const height = (Math.random() - 0.5) * 120;
+                
+                const x = Math.cos(angle) * distance;
+                const z = Math.sin(angle) * distance;
+                
+                dummy.position.set(x, height, z);
+                
+                const scale = 0.5 + Math.random() * 5;
+                dummy.scale.set(scale, scale, scale);
+
+                dummy.rotation.set(Math.random()*Math.PI, Math.random()*Math.PI, Math.random()*Math.PI);
+                
+                dummy.updateMatrix();
+                asteroidsMesh.setMatrixAt(i, dummy.matrix);
+            }
+            scene.add(asteroidsMesh);
+
+            // 4. Volumetric Dust (Particles)
+            const nebGeo = new THREE.BufferGeometry();
+            const nebPos = [];
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                nebPos.push((Math.random() - 0.5) * 800);
+                nebPos.push((Math.random() - 0.5) * 300);
+                nebPos.push((Math.random() - 0.5) * 800);
+            }
+            nebGeo.setAttribute('position', new THREE.Float32BufferAttribute(nebPos, 3));
+            
+            const spriteCanvas = document.createElement('canvas');
+            spriteCanvas.width = 32; spriteCanvas.height = 32;
+            const ctx = spriteCanvas.getContext('2d');
+            const grad = ctx.createRadialGradient(16,16,0,16,16,16);
+            grad.addColorStop(0, 'rgba(255,50,0,1)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0,0,32,32);
+            const tex = new THREE.CanvasTexture(spriteCanvas);
+
+            const nebMat = new THREE.PointsMaterial({
+                size: 8,
+                map: tex,
+                transparent: true,
+                opacity: 0.4,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
+            });
+            
+            nebulaSystem = new THREE.Points(nebGeo, nebMat);
+            scene.add(nebulaSystem);
+
+            // 5. Stars
+            const starGeo = new THREE.BufferGeometry();
+            const starPos = [];
+            for(let i=0; i<10000; i++) {
+                starPos.push((Math.random() - 0.5) * 4000);
+                starPos.push((Math.random() - 0.5) * 4000);
+                starPos.push((Math.random() - 0.5) * 4000);
+            }
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+            const starMat = new THREE.PointsMaterial({color: 0xffaaaa, size: 1.5});
+            starSystem = new THREE.Points(starGeo, starMat);
+            scene.add(starSystem);
+        }
+
+        function createCameraPath() {
+            cameraCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, 150, 500),
+                new THREE.Vector3(200, 80, 200),
+                new THREE.Vector3(-150, -80, 100),
+                new THREE.Vector3(0, 0, 40), // Dangerously close to core
+                new THREE.Vector3(150, 100, -200),
+                new THREE.Vector3(0, 50, -400)
+            ]);
+        }
+
+        function startBenchmark() {
+            elStartScreen.classList.add('hidden');
+            elLiveMetrics.style.opacity = '1';
+            
+            stats.startTime = performance.now();
+            stats.lastFrameTime = performance.now();
+            stats.totalFrames = 0;
+            stats.fpsHistory = [];
+            stats.minFps = 9999;
+            stats.maxFps = 0;
+            
+            frameCount = 0;
+            startTime = performance.now();
+            isRunning = true;
+            
+            animate();
+        }
+
+        function finishBenchmark() {
+            isRunning = false;
+            cancelAnimationFrame(rafId);
+            
+            elLiveMetrics.style.opacity = '0';
+            elResultScreen.classList.remove('hidden');
+
+            calculateScore();
+        }
+
+        function calculateScore() {
+            const endTime = performance.now();
+            const durationMs = endTime - stats.startTime;
+            const durationSec = durationMs / 1000;
+            
+            const avgFps = Math.round(stats.totalFrames / durationSec);
+            const totalFrames = stats.totalFrames;
+            
+            // Ultra Score Calculation
+            // Heavy weighting on Frames because FPS will be low
+            const score = Math.floor((totalFrames * 2) + (avgFps * 500));
+
+            let gpuName = "Unknown GPU";
+            const gl = renderer.getContext();
+            const debugInfoExt = gl.getExtension('WEBGL_debug_renderer_info');
+            if (debugInfoExt) {
+                gpuName = gl.getParameter(debugInfoExt.UNMASKED_RENDERER_WEBGL);
+            }
+            gpuName = gpuName.replace(/ANGLE \(/, '').replace(/\)/, '');
+
+            animateValue(document.getElementById('final-score'), 0, score, 3000);
+            document.getElementById('avg-fps').textContent = avgFps;
+            document.getElementById('min-fps').textContent = Math.round(stats.minFps);
+            document.getElementById('total-frames').textContent = totalFrames;
+            document.getElementById('gpu-name').textContent = gpuName;
+            
+            // Check for triangles
+            const tris = renderer.info.render.triangles;
+            document.getElementById('tri-count').textContent = (tris / 1000000).toFixed(1) + "M";
+        }
+
+        function animateValue(obj, start, end, duration) {
+            let startTimestamp = null;
+            const step = (timestamp) => {
+                if (!startTimestamp) startTimestamp = timestamp;
+                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                obj.innerHTML = Math.floor(progress * (end - start) + start);
+                if (progress < 1) {
+                    window.requestAnimationFrame(step);
+                }
+            };
+            window.requestAnimationFrame(step);
+        }
+
+        function animate() {
+            if (!isRunning) return;
+
+            const now = performance.now();
+            const elapsed = (now - startTime) / 1000;
+            
+            if (elapsed >= DURATION) {
+                finishBenchmark();
+                return;
+            }
+
+            rafId = requestAnimationFrame(animate);
+
+            // Camera Path
+            const loopTime = DURATION;
+            const t = (elapsed % loopTime) / loopTime;
+            const position = cameraCurve.getPointAt(t);
+            const lookAt = new THREE.Vector3(0, 0, 0);
+            
+            // Handheld shake effect
+            position.x += Math.sin(now * 0.01) * 2; 
+            position.y += Math.cos(now * 0.015) * 2;
+
+            camera.position.copy(position);
+            camera.lookAt(lookAt);
+
+            // Object Animation
+            coreMesh.rotation.x = now * 0.0008;
+            coreMesh.rotation.y = now * 0.0015;
+            
+            asteroidsMesh.rotation.y = now * -0.0005;
+            
+            // Move lights
+            lightGroup.rotation.y = now * 0.002; 
+            lightGroup.rotation.z = Math.sin(now * 0.001) * 0.3;
+            
+            // Pulse Lights
+            lightGroup.children.forEach((light, i) => {
+                light.intensity = 5 + Math.sin(now * 0.005 + i) * 3;
+            });
+
+            starSystem.rotation.z += 0.0001;
+            nebulaSystem.rotation.y += 0.0002;
+
+            // --- THE REAL COST ---
+            // Update Dynamic Environment Map (Reflections)
+            // We hide the asteroids briefly so they don't reflect themselves incorrectly (or we can leave them for chaos)
+            // Hiding them improves performance slightly and prevents near-plane clipping artifacts in the reflection
+            asteroidsMesh.visible = false; 
+            cubeCamera.position.copy(camera.position); // Cube camera follows player for dynamic reflections relative to view
+            cubeCamera.update(renderer, scene);
+            asteroidsMesh.visible = true;
+
+            // Render Final Scene
+            composer.render();
+
+            // Stats Logic
+            stats.totalFrames++;
+            frameCount++;
+            
+            if (frameCount % 10 === 0) { 
+                const currentFps = 1000 / ((now - stats.lastFrameTime) / 10);
+                
+                if (elapsed > 2) { 
+                    if (currentFps < stats.minFps) stats.minFps = currentFps;
+                    if (currentFps > stats.maxFps) stats.maxFps = currentFps;
+                }
+                
+                elFps.textContent = Math.round(currentFps);
+                elTime.textContent = elapsed.toFixed(2) + "s";
+                
+                stats.lastFrameTime = now;
+            }
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+    </script>
+</body>
+</html>
